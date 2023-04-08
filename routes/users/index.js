@@ -8,7 +8,23 @@ const CommentModel= require('../../models/comment')
 
 // Routes Related to users
 
+const getFirstLevelFriends =(userId)=>{
+     return CommentModel.find( {commentAddedByUserID: userId})
+            .then((docs, error)=>{
 
+                if(error) throw error
+                var users = [];
+               //  console.log(docs)
+                // getting users from each blog
+                // and excluding current user
+                docs.filter(comment=>comment.commentAddedByUserID != userId)
+                    .forEach(ele=>{
+                        users = [...users, ele.commentAddedByUserID]
+                    })
+                
+            return users;            
+        }).catch(err=>-1)
+}
 
 
 router.get('/:userId/level/:levelNo', async (req, res) => { 
@@ -19,8 +35,62 @@ router.get('/:userId/level/:levelNo', async (req, res) => {
 
         // not able to implement the correct login 
         //  need to work more on this type of api's
+
+         var friends=  await getFirstLevelFriends(userId);
+         var previousLevelFriends;
+          var kLevel = levelNo;
+          kLevel--;
+
+          if(friends == -1) res.send({message: 'something went wrong'})
+
+          while(kLevel){
+               // console.log("Executing...")
+               var kLevelFriends = new Set()
+               for(var friend of friends){
+                 var firstLevelFriends = await  getFirstLevelFriends(friend);
+                 for(var firstLevelFriend of firstLevelFriends){
+                    var flag = 0;
+                    for(friend of friends){
+                    if(friend == firstLevelFriend){
+                    flag = 1;
+                    break;
+                    }
+                    }
+                    if(flag == 0 && firstLevelFriend != userId) 
+                    kLevelFriends.add(firstLevelFriend)
+                 }
+               }
+
+               previousLevelFriends = friends
+               friends = kLevelFriends;
+               kLevel--;
+          }
+
+          var kLevelFriends = [];
+
+          for(friend of friends){
+               var docs;
+               try{
+               docs = await UserModel.find({_id: friend});
+               var flag = 0;
+               if(previousLevelFriends)
+                    for(friend of friends){
+                    if(previousLevelFriends.includes(friend)){
+                    flag = 1;
+                    break;
+                    }
+               }
+               if(!flag)
+               kLevelFriends = [...kLevelFriends, docs];
+               }catch(e){
+               kLevelFriends = []
+               }
+          }
+          //  console.log('done')
+
+
      
-        res.send({friends:[],status:'200',message:'Friends Found at requested level.'});
+        res.send({friends:kLevelFriends,status:'200',message:'Friends Found at requested level.'});
 
    }catch (error) { 
         console.log(error)
